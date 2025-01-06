@@ -249,7 +249,6 @@ class Qwen2MLAttention(nn.Module):
         self.rope_theta = config.rope_theta
         self.is_causal = True
         self.attention_dropout = config.attention_dropout
-        self.kv_dropout = config.kv_dropout
 
         if (self.head_dim * self.num_heads) != self.hidden_size:
             raise ValueError(
@@ -262,6 +261,8 @@ class Qwen2MLAttention(nn.Module):
         self.v_proj = nn.Linear(self.hidden_size, self.num_key_value_heads * self.head_dim, bias=True)
         self.v_up_proj = nn.Linear(self.num_key_value_heads * self.head_dim, self.num_heads * self.head_dim, bias=False)
         self.o_proj = nn.Linear(self.num_heads * self.head_dim, self.hidden_size, bias=False)
+        self.k_norm = Qwen2RMSNorm(config.head_dim, eps=config.rms_norm_eps)
+        self.v_norm = Qwen2RMSNorm(config.head_dim, eps=config.rms_norm_eps)
 
         self.rotary_emb = Qwen2RotaryEmbedding(config=self.config)
 
@@ -283,10 +284,10 @@ class Qwen2MLAttention(nn.Module):
         value_states = self.v_proj(hidden_states)
 
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-        key_states = nn.functional.dropout(key_states, p=self.kv_dropout, training=self.training)
+        key_states = self.k_norm(key_states)
         key_states = self.k_up_proj(key_states)
         key_states = key_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-        value_states = nn.functional.dropout(value_states, p=self.kv_dropout, training=self.training)
+        value_states = self.v_norm(value_states)
         value_states = self.v_up_proj(value_states)
         value_states = value_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
 
@@ -369,10 +370,10 @@ class Qwen2FlashMLAttention2(Qwen2MLAttention):
         value_states = self.v_proj(hidden_states)
 
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-        key_states = nn.functional.dropout(key_states, p=self.kv_dropout, training=self.training)
+        key_states = self.k_norm(key_states)
         key_states = self.k_up_proj(key_states)
         key_states = key_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-        value_states = nn.functional.dropout(value_states, p=self.kv_dropout, training=self.training)
+        value_states = self.v_norm(value_states)
         value_states = self.v_up_proj(value_states)
         value_states = value_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
 
@@ -494,13 +495,13 @@ class Qwen2SdpaMLAttention(Qwen2MLAttention):
         value_states = self.v_proj(hidden_states)
 
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-        key_states = nn.functional.dropout(key_states, p=self.kv_dropout, training=self.training)
+        key_states = self.k_norm(key_states)
         key_states = self.k_up_proj(key_states)
         key_states = key_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-        value_states = nn.functional.dropout(value_states, p=self.kv_dropout, training=self.training)
+        value_states = self.v_norm(value_states)
         value_states = self.v_up_proj(value_states)
         value_states = value_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-        
+
 
         if position_embeddings is None:
             logger.warning_once(

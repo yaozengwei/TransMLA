@@ -261,8 +261,8 @@ class Qwen2MLAttention(nn.Module):
         self.v_proj = nn.Linear(self.hidden_size, self.num_key_value_heads * self.head_dim, bias=True)
         self.v_up_proj = nn.Linear(self.num_key_value_heads * self.head_dim, self.num_heads * self.head_dim, bias=False)
         self.o_proj = nn.Linear(self.num_heads * self.head_dim, self.hidden_size, bias=False)
-        self.k_norm = Qwen2RMSNorm(config.head_dim, eps=config.rms_norm_eps)
-        self.v_norm = Qwen2RMSNorm(config.head_dim, eps=config.rms_norm_eps)
+        self.k_norm = Qwen2RMSNorm(self.head_dim, eps=config.rms_norm_eps)
+        self.v_norm = Qwen2RMSNorm(self.head_dim, eps=config.rms_norm_eps)
 
         self.rotary_emb = Qwen2RotaryEmbedding(config=self.config)
 

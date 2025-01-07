@@ -284,10 +284,10 @@ class Qwen2MLAttention(nn.Module):
         value_states = self.v_proj(hidden_states)
 
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-        key_states = self.k_act(key_states)
+        key_states = self.k_act(key_states.transpose(1, 2)).transpose(1, 2)
         key_states = self.k_up_proj(key_states)
         key_states = key_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-        value_states = self.v_act(value_states)
+        value_states = self.v_act(value_states.transpose(1, 2)).transpose(1, 2)
         value_states = self.v_up_proj(value_states)
         value_states = value_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
 
@@ -370,10 +370,10 @@ class Qwen2FlashMLAttention2(Qwen2MLAttention):
         value_states = self.v_proj(hidden_states)
 
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-        key_states = self.k_act(key_states)
+        key_states = self.k_act(key_states.transpose(1, 2)).transpose(1, 2)
         key_states = self.k_up_proj(key_states)
         key_states = key_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-        value_states = self.v_act(value_states)
+        value_states = self.v_act(value_states.transpose(1, 2)).transpose(1, 2)
         value_states = self.v_up_proj(value_states)
         value_states = value_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
 
@@ -495,10 +495,10 @@ class Qwen2SdpaMLAttention(Qwen2MLAttention):
         value_states = self.v_proj(hidden_states)
 
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-        key_states = self.k_act(key_states)
+        key_states = self.k_act(key_states.transpose(1, 2)).transpose(1, 2)
         key_states = self.k_up_proj(key_states)
         key_states = key_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-        value_states = self.v_act(value_states)
+        value_states = self.v_act(value_states.transpose(1, 2)).transpose(1, 2)
         value_states = self.v_up_proj(value_states)
         value_states = value_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
 

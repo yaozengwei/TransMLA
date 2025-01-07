@@ -223,6 +223,19 @@ class Qwen2MLP(nn.Module):
         return self.down_proj(self.act_fn(self.gate_proj(hidden_state)) * self.up_proj(hidden_state))
 
 
+# Copied from transformers.models.llama.modeling_llama.repeat_kv
+def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
+    """
+    This is the equivalent of torch.repeat_interleave(x, dim=1, repeats=n_rep). The hidden states go from (batch,
+    num_key_value_heads, seqlen, head_dim) to (batch, num_attention_heads, seqlen, head_dim)
+    """
+    batch, num_key_value_heads, slen, head_dim = hidden_states.shape
+    if n_rep == 1:
+        return hidden_states
+    hidden_states = hidden_states[:, :, None, :, :].expand(batch, num_key_value_heads, n_rep, slen, head_dim)
+    return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
+
+
 class Qwen2MLAttention(nn.Module):
     """
     Multi-headed attention from 'Attention Is All You Need' paper. Modified to use sliding window attention: Longformer
@@ -286,6 +299,14 @@ class Qwen2MLAttention(nn.Module):
         value_states = self.v_proj(hidden_states)
 
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+
+        # repeat as residual
+        key_states_res = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+        value_states_res = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+        # repeat k/v heads if n_kv_heads < n_heads
+        key_states_res = repeat_kv(key_states_res, self.num_key_value_groups)
+        value_states_res = repeat_kv(value_states_res, self.num_key_value_groups)
+
         key_states = self.k_norm(key_states)
         key_states = self.k_act(key_states.transpose(1, 2)).transpose(1, 2)
         key_states = self.k_up_proj(key_states)
@@ -294,6 +315,10 @@ class Qwen2MLAttention(nn.Module):
         value_states = self.v_act(value_states.transpose(1, 2)).transpose(1, 2)
         value_states = self.v_up_proj(value_states)
         value_states = value_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+
+        # add repeat-residual
+        key_states = key_states + key_states_res
+        value_states = value_states + value_states_res
 
         if position_embeddings is None:
             logger.warning_once(
@@ -374,6 +399,14 @@ class Qwen2FlashMLAttention2(Qwen2MLAttention):
         value_states = self.v_proj(hidden_states)
 
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+
+        # repeat as residual
+        key_states_res = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+        value_states_res = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+        # repeat k/v heads if n_kv_heads < n_heads
+        key_states_res = repeat_kv(key_states_res, self.num_key_value_groups)
+        value_states_res = repeat_kv(value_states_res, self.num_key_value_groups)
+
         key_states = self.k_norm(key_states)
         key_states = self.k_act(key_states.transpose(1, 2)).transpose(1, 2)
         key_states = self.k_up_proj(key_states)
@@ -382,6 +415,10 @@ class Qwen2FlashMLAttention2(Qwen2MLAttention):
         value_states = self.v_act(value_states.transpose(1, 2)).transpose(1, 2)
         value_states = self.v_up_proj(value_states)
         value_states = value_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+
+        # add repeat-residual
+        key_states = key_states + key_states_res
+        value_states = value_states + value_states_res
 
         if position_embeddings is None:
             logger.warning_once(
@@ -501,6 +538,14 @@ class Qwen2SdpaMLAttention(Qwen2MLAttention):
         value_states = self.v_proj(hidden_states)
 
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+
+        # repeat as residual
+        key_states_res = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+        value_states_res = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+        # repeat k/v heads if n_kv_heads < n_heads
+        key_states_res = repeat_kv(key_states_res, self.num_key_value_groups)
+        value_states_res = repeat_kv(value_states_res, self.num_key_value_groups)
+
         key_states = self.k_norm(key_states)
         key_states = self.k_act(key_states.transpose(1, 2)).transpose(1, 2)
         key_states = self.k_up_proj(key_states)
@@ -510,6 +555,9 @@ class Qwen2SdpaMLAttention(Qwen2MLAttention):
         value_states = self.v_up_proj(value_states)
         value_states = value_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
 
+        # add repeat-residual
+        key_states = key_states + key_states_res
+        value_states = value_states + value_states_res
 
         if position_embeddings is None:
             logger.warning_once(
@@ -526,7 +574,6 @@ class Qwen2SdpaMLAttention(Qwen2MLAttention):
         if past_key_value is not None:
             cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}  # Specific to RoPE models
             key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
-
 
         causal_mask = attention_mask
         if attention_mask is not None:  # no matter the length, we just slice it

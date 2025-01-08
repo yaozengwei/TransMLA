@@ -272,9 +272,11 @@ class Qwen2MLAttention(nn.Module):
         self.q_proj = nn.Linear(self.hidden_size, self.num_heads * self.head_dim, bias=True)
         self.k_proj = nn.Linear(self.hidden_size, self.num_key_value_heads * self.head_dim, bias=True)
         self.k_act = nn.PReLU(self.num_key_value_heads * self.head_dim, init=1.0)
+        self.k_post_act = nn.PReLU(1, init=1.0)
         self.k_up_proj = nn.Linear(self.num_key_value_heads * self.head_dim, self.num_heads * self.head_dim, bias=False)
         self.v_proj = nn.Linear(self.hidden_size, self.num_key_value_heads * self.head_dim, bias=True)
         self.v_act = nn.PReLU(self.num_key_value_heads * self.head_dim, init=1.0)
+        self.v_post_act = nn.PReLU(1, init=1.0)
         self.v_up_proj = nn.Linear(self.num_key_value_heads * self.head_dim, self.num_heads * self.head_dim, bias=False)
         self.o_proj = nn.Linear(self.num_heads * self.head_dim, self.hidden_size, bias=False)
 
@@ -315,9 +317,9 @@ class Qwen2MLAttention(nn.Module):
         value_states = self.v_up_proj(value_states)
         value_states = value_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
 
-        # add repeat-residual
-        key_states = key_states + key_states_res
-        value_states = value_states + value_states_res
+        # add repeat-residual and apply activation function
+        key_states = self.k_post_act(key_states + key_states_res)
+        value_states = self.v_post_act(value_states + value_states_res)
 
         if position_embeddings is None:
             logger.warning_once(
@@ -415,9 +417,9 @@ class Qwen2FlashMLAttention2(Qwen2MLAttention):
         value_states = self.v_up_proj(value_states)
         value_states = value_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
 
-        # add repeat-residual
-        key_states = key_states + key_states_res
-        value_states = value_states + value_states_res
+        # add repeat-residual and apply activation function
+        key_states = self.k_post_act(key_states + key_states_res)
+        value_states = self.v_post_act(value_states + value_states_res)
 
         if position_embeddings is None:
             logger.warning_once(
@@ -554,9 +556,9 @@ class Qwen2SdpaMLAttention(Qwen2MLAttention):
         value_states = self.v_up_proj(value_states)
         value_states = value_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
 
-        # add repeat-residual
-        key_states = key_states + key_states_res
-        value_states = value_states + value_states_res
+        # add repeat-residual and apply activation function
+        key_states = self.k_post_act(key_states + key_states_res)
+        value_states = self.v_post_act(value_states + value_states_res)
 
         if position_embeddings is None:
             logger.warning_once(

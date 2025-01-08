@@ -262,6 +262,7 @@ class Qwen2MLAttention(nn.Module):
         self.rope_theta = config.rope_theta
         self.is_causal = True
         self.attention_dropout = config.attention_dropout
+        self.kv_dropout = config.kv_dropout
 
         if (self.head_dim * self.num_heads) != self.hidden_size:
             raise ValueError(
@@ -306,9 +307,11 @@ class Qwen2MLAttention(nn.Module):
         value_states_res = repeat_kv(value_states_res, self.num_key_value_groups)
 
         key_states = self.k_act(key_states.transpose(1, 2)).transpose(1, 2)
+        key_states = nn.functional.dropout(key_states, p=self.kv_dropout, training=self.training)
         key_states = self.k_up_proj(key_states)
         key_states = key_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         value_states = self.v_act(value_states.transpose(1, 2)).transpose(1, 2)
+        value_states = nn.functional.dropout(value_states, p=self.kv_dropout, training=self.training)
         value_states = self.v_up_proj(value_states)
         value_states = value_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
 
@@ -404,9 +407,11 @@ class Qwen2FlashMLAttention2(Qwen2MLAttention):
         value_states_res = repeat_kv(value_states_res, self.num_key_value_groups)
 
         key_states = self.k_act(key_states.transpose(1, 2)).transpose(1, 2)
+        key_states = nn.functional.dropout(key_states, p=self.kv_dropout, training=self.training)
         key_states = self.k_up_proj(key_states)
         key_states = key_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         value_states = self.v_act(value_states.transpose(1, 2)).transpose(1, 2)
+        value_states = nn.functional.dropout(value_states, p=self.kv_dropout, training=self.training)
         value_states = self.v_up_proj(value_states)
         value_states = value_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
 
@@ -541,9 +546,11 @@ class Qwen2SdpaMLAttention(Qwen2MLAttention):
         value_states_res = repeat_kv(value_states_res, self.num_key_value_groups)
 
         key_states = self.k_act(key_states.transpose(1, 2)).transpose(1, 2)
+        key_states = nn.functional.dropout(key_states, p=self.kv_dropout, training=self.training)
         key_states = self.k_up_proj(key_states)
         key_states = key_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         value_states = self.v_act(value_states.transpose(1, 2)).transpose(1, 2)
+        value_states = nn.functional.dropout(value_states, p=self.kv_dropout, training=self.training)
         value_states = self.v_up_proj(value_states)
         value_states = value_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
 
